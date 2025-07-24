@@ -42,6 +42,7 @@ import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.jetbrains.annotations.NotNull;
 
+import java.lang.ref.WeakReference;
 import java.util.*;
 
 public class Pet {
@@ -172,9 +173,17 @@ public class Pet {
     // Indicates the taming progress (between 0 and 1)
     private double tamingProgress = 0;
 
-    @Getter
     // The active mob representing the pet instance
-    private ActiveMob activeMob;
+    // Using WeakReference to prevent memory leaks
+    private WeakReference<ActiveMob> activeMobRef;
+    
+    /**
+     * Get the active mob representing the pet instance
+     * @return The active mob, or null if it has been garbage collected
+     */
+    public ActiveMob getActiveMob() {
+        return activeMobRef != null ? activeMobRef.get() : null;
+    }
 
     @Getter
     // Is the pet invulnerable ?
@@ -432,7 +441,10 @@ public class Pet {
                 // Give the access
                 Utils.givePermission(owner, permission);
                 // Activate the pet in MCPets, coz so far it was just following the owner
-                changeActiveMobTo(activeMob, owner, true, PetDespawnReason.REPLACED);
+                ActiveMob mob = getActiveMob();
+                if (mob != null) {
+                    changeActiveMobTo(mob, owner, true, PetDespawnReason.REPLACED);
+                }
 
                 // Set the health at the top after taming
                 new BukkitRunnable() {
@@ -443,17 +455,18 @@ public class Pet {
                     }
                 }.runTaskLater(MCPets.getInstance(), 2L);
                 Skill tamingOverSkillMM = Utils.getSkill(tamingOverSkill);
-                if (tamingOverSkillMM != null) {
+                if (tamingOverSkillMM != null && mob != null) {
                     try {
-                        tamingOverSkillMM.execute(new SkillMetadataImpl(SkillTriggers.CUSTOM, activeMob, activeMob.getEntity()));
+                        tamingOverSkillMM.execute(new SkillMetadataImpl(SkillTriggers.CUSTOM, mob, mob.getEntity()));
                     } catch (Exception ignored) {}
                 }
             }
             else {
                 Skill tamingProgressSkillMM = Utils.getSkill(tamingProgressSkill);
-                if (tamingProgressSkillMM != null) {
+                ActiveMob mob = getActiveMob();
+                if (tamingProgressSkillMM != null && mob != null) {
                     try {
-                        tamingProgressSkillMM.execute(new SkillMetadataImpl(SkillTriggers.CUSTOM, activeMob, activeMob.getEntity()));
+                        tamingProgressSkillMM.execute(new SkillMetadataImpl(SkillTriggers.CUSTOM, mob, mob.getEntity()));
                     } catch (Exception ignored) {}
                 }
             }
@@ -601,7 +614,7 @@ public class Pet {
             maybeHere.ifPresent(this::setActiveMob);
 
             // Sometimes it can happen that the mob isn't registered, so we try to register it manually
-            if (activeMob == null) {
+            if (getActiveMob() == null) {
                 Debugger.send("§6Warn: §7MythicMobs didn't have the mob in the registry, let's try to register it manually.");
                 ActiveMob mob = MCPets.getMythicMobs().getMobManager().registerActiveMob(
                         BukkitAdapter.adapt(ent),
@@ -613,7 +626,7 @@ public class Pet {
             }
 
             // If any weird thing happened and the activeMob couldn't be registered, then we cancel everything
-            if (activeMob == null) {
+            if (getActiveMob() == null) {
                 Debugger.send("§cMythicMob was spawned but MCPets couldn't link it to an active mob. Trying again in 0.5s automatically...");
                 // We remove the entity coz that'll not be done by the despawn since the activeMob is null
                 ent.remove();
@@ -626,7 +639,7 @@ public class Pet {
                 return MYTHIC_MOB_NULL;
             }
 
-            boolean returnDespawned = changeActiveMobTo(activeMob, owner, true, PetDespawnReason.REPLACED);
+            boolean returnDespawned = changeActiveMobTo(getActiveMob(), owner, true, PetDespawnReason.REPLACED);
 
             // Handles the first spawn situation
             if (firstSpawn) {
@@ -715,7 +728,10 @@ public class Pet {
 
         // Set the owner
         this.owner = owner;
-        activeMob.setOwnerUUID(owner);
+        ActiveMob activeMobInstance = getActiveMob();
+        if (activeMobInstance != null) {
+            activeMobInstance.setOwnerUUID(owner);
+        }
 
         // Follow up the owner ?
         this.followOwner = followOwner;
@@ -757,9 +773,9 @@ public class Pet {
             despawn(PetDespawnReason.CHANGING_TO_NULL_ACTIVEMOB);
             return;
         }
-        // Then we set the active mob to the new active mob
+        // Then we set the active mob to the new active mob using WeakReference
         // And we setup the default pet parameters
-        activeMob = mob;
+        activeMobRef = mob != null ? new WeakReference<>(mob) : null;
         Entity ent = mob.getEntity().getBukkitEntity();
 
         // Put the Metadata on the pet that characterizes it so we can identify it later
@@ -825,7 +841,7 @@ public class Pet {
                 // Following AI System
                 if (distance < getInstance().getComingBackRange()) {
                     // If the pet is too close then it stops
-                    PathFindingUtils.stop(activeMob.getEntity(), owner);
+                    PathFindingUtils.stop(getActiveMob().getEntity(), owner);
                 }
                 else if (distance > getInstance().getDistance() &&
                         (distance < GlobalConfig.getInstance().getDistanceTeleport() || tamingProgress < 1)) {
@@ -834,8 +850,8 @@ public class Pet {
                     // * Note : if the taming is not completed then the pet can not be teleported to the owner
                     if (!followOwner)
                         return;
-                    AbstractLocation aloc = new AbstractLocation(activeMob.getEntity().getWorld(), petLocation.getX(), petLocation.getY(), petLocation.getZ());
-                    PathFindingUtils.moveTo(activeMob.getEntity(), aloc);
+                    AbstractLocation aloc = new AbstractLocation(getActiveMob().getEntity().getWorld(), petLocation.getX(), petLocation.getY(), petLocation.getZ());
+                    PathFindingUtils.moveTo(getActiveMob().getEntity(), aloc);
                 }
                 else if (distance > GlobalConfig.getInstance().getDistanceTeleport()
                         && !p.isFlying() && !p.isGliding()
@@ -889,9 +905,10 @@ public class Pet {
             }
         }
 
-        if (activeMob != null) {
+        ActiveMob mob = getActiveMob();
+        if (mob != null) {
 
-            ModeledEntity model = ModelEngineAPI.getModeledEntity(activeMob.getEntity().getUniqueId());
+            ModeledEntity model = ModelEngineAPI.getModeledEntity(mob.getEntity().getUniqueId());
             if (model != null && model.getMountData() != null) {
                 MountManager mountManager = model.getMountData().getMainMountManager();
                 if (mountManager != null) {
@@ -906,24 +923,24 @@ public class Pet {
                 if (despawnSkillMM != null
                         && reason != PetDespawnReason.SKIN) {
                     try {
-                        despawnSkillMM.execute(new SkillMetadataImpl(SkillTriggers.CUSTOM, activeMob, activeMob.getEntity()));
+                        despawnSkillMM.execute(new SkillMetadataImpl(SkillTriggers.CUSTOM, mob, mob.getEntity()));
                     }
                     catch (Exception ex) {
-                        if (activeMob.getEntity() != null && activeMob.getEntity().getBukkitEntity() != null) {
-                            activeMob.getEntity().getBukkitEntity().remove();
-                            activeMob.despawn();
-                            activeMob.remove();
+                        if (mob.getEntity() != null && mob.getEntity().getBukkitEntity() != null) {
+                            mob.getEntity().getBukkitEntity().remove();
+                            mob.despawn();
+                            mob.remove();
                         }
                     }
                 }
                 else {
-                    ModelEngineAPI.removeModeledEntity(activeMob.getEntity().getUniqueId());
-                    activeMob.despawn();
-                    activeMob.remove();
-                    if (activeMob.getEntity() != null)
-                        activeMob.getEntity().remove();
-                    if (activeMob.getEntity() != null && activeMob.getEntity().getBukkitEntity() != null)
-                        activeMob.getEntity().getBukkitEntity().remove();
+                    ModelEngineAPI.removeModeledEntity(mob.getEntity().getUniqueId());
+                    mob.despawn();
+                    mob.remove();
+                    if (mob.getEntity() != null)
+                        mob.getEntity().remove();
+                    if (mob.getEntity() != null && mob.getEntity().getBukkitEntity() != null)
+                        mob.getEntity().getBukkitEntity().remove();
                 }
             }
 
@@ -941,7 +958,10 @@ public class Pet {
      */
     public void teleport(Location loc) {
         if (isStillHere()) {
-            this.activeMob.remove();
+            ActiveMob mob = getActiveMob();
+            if (mob != null) {
+                mob.remove();
+            }
             this.despawn(PetDespawnReason.TELEPORT);
             this.spawn(loc, true);
         }
@@ -961,11 +981,12 @@ public class Pet {
      * Say whether or not the entity is still present
      */
     public boolean isStillHere() {
-        return activeMob != null &&
-                activeMob.getEntity() != null &&
-                activeMob.getEntity().getBukkitEntity() != null &&
-                //!activeMob.getEntity().getBukkitEntity().isDead() &&     THIS ONE APPARENTLY DOESN'T WORK AS INTENDED
-                !activeMob.isDead() &&
+        ActiveMob mob = getActiveMob();
+        return mob != null &&
+                mob.getEntity() != null &&
+                mob.getEntity().getBukkitEntity() != null &&
+                //!mob.getEntity().getBukkitEntity().isDead() &&     THIS ONE APPARENTLY DOESN'T WORK AS INTENDED
+                !mob.isDead() &&
                 !removed;
     }
 
@@ -987,8 +1008,9 @@ public class Pet {
 
         if (name.equalsIgnoreCase(Language.TAG_TO_REMOVE_NAME.getMessage()) && !GlobalConfig.getInstance().isOverrideDefaultName()) {
             isDefaultName = true;
-            if (GlobalConfig.getInstance().isUseDefaultMythicMobNames())
-                name = activeMob.getDisplayName();
+            ActiveMob activeMobInstance = getActiveMob();
+            if (GlobalConfig.getInstance().isUseDefaultMythicMobNames() && activeMobInstance != null)
+                name = activeMobInstance.getDisplayName();
             else
                 name = GlobalConfig.getInstance().getDefaultName()
                         .replace("%player%", Bukkit.getOfflinePlayer(owner).getName())
@@ -1007,8 +1029,13 @@ public class Pet {
 
             currentName = name;
             if (isStillHere()) {
+                ActiveMob activeMobInstance = getActiveMob();
+                if (activeMobInstance == null) {
+                    return; // Can't set name if the mob has been garbage collected
+                }
+                
                 if (currentName == null || currentName.equalsIgnoreCase(Language.TAG_TO_REMOVE_NAME.getMessage())) {
-                    activeMob.getEntity().getBukkitEntity().setCustomName(GlobalConfig.getInstance().getDefaultName()
+                    activeMobInstance.getEntity().getBukkitEntity().setCustomName(GlobalConfig.getInstance().getDefaultName()
                             .replace("%player%", Bukkit.getOfflinePlayer(owner).getName())
                             .replace("%pet_id%", id)
                             .replace("%pet_name%", icon.getItemMeta().getDisplayName()));
@@ -1030,7 +1057,7 @@ public class Pet {
                     return;
                 }
 
-                activeMob.getEntity().getBukkitEntity().setCustomName(currentName);
+                activeMobInstance.getEntity().getBukkitEntity().setCustomName(currentName);
 
                 new BukkitRunnable() {
                     @Override
@@ -1081,8 +1108,9 @@ public class Pet {
         pet.setIcon(icon);
         pet.setSignalStick(signalStick);
         pet.setOwner(owner);
-        if (activeMob != null)
-            pet.setActiveMob(activeMob);
+        ActiveMob activeMobInstance = getActiveMob();
+        if (activeMobInstance != null)
+            pet.setActiveMob(activeMobInstance);
         pet.setSignals(signals);
         pet.setEnableSignalStickFromMenu(enableSignalStickFromMenu);
         return pet;
@@ -1095,8 +1123,13 @@ public class Pet {
         if (ent == null)
             return false;
 
+        ActiveMob activeMobInstance = getActiveMob();
+        if (activeMobInstance == null) {
+            return false; // Can't mount if the mob has been garbage collected
+        }
+        
         EntityMountPetEvent event = new EntityMountPetEvent(ent, this);
-        EntityMountEvent vanillaMountEvent = new EntityMountEvent(ent, activeMob.getEntity().getBukkitEntity());
+        EntityMountEvent vanillaMountEvent = new EntityMountEvent(ent, activeMobInstance.getEntity().getBukkitEntity());
         Utils.callEvent(vanillaMountEvent);
         Utils.callEvent(event);
 
@@ -1106,10 +1139,10 @@ public class Pet {
 
         if (isStillHere()) {
             try {
-                UUID petUUID = activeMob.getEntity().getUniqueId();
+                UUID petUUID = activeMobInstance.getEntity().getUniqueId();
                 ModeledEntity model = ModelEngineAPI.getModeledEntity(petUUID);
                 if (model == null) {
-                    activeMob.getEntity().getBukkitEntity().addPassenger(ent);
+                    activeMobInstance.getEntity().getBukkitEntity().addPassenger(ent);
                     return false;
                 }
 
@@ -1149,7 +1182,11 @@ public class Pet {
      */
     public boolean hasMount(Entity ent) {
         if (isStillHere()) {
-            UUID petUUID = activeMob.getEntity().getUniqueId();
+            ActiveMob activeMobInstance = getActiveMob();
+            if (activeMobInstance == null) {
+                return false; // Can't have a mount if the mob has been garbage collected
+            }
+            UUID petUUID = activeMobInstance.getEntity().getUniqueId();
             ModeledEntity model = ModelEngineAPI.getModeledEntity(petUUID);
             if (model == null) {
                 return false;
@@ -1173,7 +1210,11 @@ public class Pet {
         // Try - catch to prevent onDisable no class def found print
         try {
             if (isStillHere()) {
-                UUID localUUID = activeMob.getEntity().getUniqueId();
+                ActiveMob activeMobInstance = getActiveMob();
+                if (activeMobInstance == null) {
+                    return; // Can't dismount if the mob has been garbage collected
+                }
+                UUID localUUID = activeMobInstance.getEntity().getUniqueId();
                 ModeledEntity model = ModelEngineAPI.getModeledEntity(localUUID);
                 if (model == null) {
                     return;
@@ -1213,8 +1254,11 @@ public class Pet {
      */
     public NameTag getNameBone() {
         if (isStillHere()) {
-
-            UUID localUUID = activeMob.getEntity().getUniqueId();
+            ActiveMob activeMobInstance = getActiveMob();
+            if (activeMobInstance == null) {
+                return null; // Can't get name bone if the mob has been garbage collected
+            }
+            UUID localUUID = activeMobInstance.getEntity().getUniqueId();
             ModeledEntity model = ModelEngineAPI.getModeledEntity(localUUID);
             if (model == null) {
                 return null;
