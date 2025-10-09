@@ -223,7 +223,7 @@ public class Pet {
     public Pet(String id) {
         this.id = id;
         this.instance = this;
-        this.checkPermission = true;
+        this.checkPermission = false;
         this.firstSpawn = true;
         this.petFoodEatenTimestamps = new HashMap<>();
     }
@@ -548,15 +548,6 @@ public class Pet {
             }.runTaskLater(MCPets.getInstance(), 10L);
         }
 
-        // If we should check the permission
-        if (checkPermission && owner != null &&
-                Bukkit.getPlayer(owner) != null &&
-                !Bukkit.getPlayer(owner).hasPermission(permission)) {
-            Debugger.send("§cUser is not allowed to spawn that pet.");
-            despawn(PetDespawnReason.DONT_HAVE_PERM);
-            return NOT_ALLOWED;
-        }
-
         // Get the active skin (which is also a MythicMobs)
         // Adapt the mythicMob to despawn depending on the skin
         if (getActiveSkin() != null)
@@ -820,14 +811,6 @@ public class Pet {
                 if (!getInstance().isStillHere()) {
                     Debugger.send("§6[AiManager] : §cPet " + getId() + " is not here, so it gets despawned.");
                     getInstance().despawn(PetDespawnReason.AI_TRACK_DESPAWN);
-                    stopAI();
-                    return;
-                }
-
-                String permission = getInstance().getPermission();
-                if (permission == null || !p.hasPermission(permission)) {
-                    Debugger.send("§6[AiManager] : §cPet " + getId() + " despawned because the owner doesn't have permission");
-                    getInstance().despawn(PetDespawnReason.DONT_HAVE_PERM);
                     stopAI();
                     return;
                 }
