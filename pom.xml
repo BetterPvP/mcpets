@@ -9,7 +9,7 @@
 
     <groupId>fr.nocsy</groupId>
     <artifactId>mcpets</artifactId>
-    <version>4.1.8</version>
+    <version>4.1.10</version>
 
     <licenses>
         <license>
@@ -30,6 +30,19 @@
                     <target>11</target>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>3.3.1</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
         <resources>
             <resource>
@@ -44,6 +57,18 @@
         <maven.compiler.target>11</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
+
+    <distributionManagement>
+        <repository>
+            <id>mykindos-releases</id>
+            <url>http://repo.mykindos.me:8081/repository/maven-releases/</url>
+        </repository>
+        <snapshotRepository>
+            <id>mykindos-snapshots</id>
+            <url>http://repo.mykindos.me:8081/repository/maven-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
+
 
     <repositories>
         <repository>
