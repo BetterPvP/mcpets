@@ -210,13 +210,14 @@ public class LivingPetsListener implements Listener {
             PetStats stats = PetStats.getPetStatsOnRespawnTimerRunning(pet.getOwner());
             if (stats != null) {
                 e.setCancelled(true);
+                Debugger.send("§cSpawn of §6" + pet.getId() + "§c cancelled: global respawn timer is running (pet §6" + stats.getPet().getId() + "§c, §6" + stats.getRespawnTimer().getRemainingTime() + "s§c left).");
                 PetDespawnEvent petDespawnEvent = new PetDespawnEvent(pet, PetDespawnReason.RESPAWN_TIMER);
                 Utils.callEvent(petDespawnEvent);
 
                 Player p = Bukkit.getPlayer(pet.getOwner());
 
                 if (p != null)
-                    Language.GLOBAL_RESPAWN_TIMER_RUNNING.sendMessageFormated(p,
+                    Language.GLOBAL_RESPAWN_TIMER_RUNNING.sendMessageFormatted(p,
                             new FormatArg("%timeLeft%", Integer.toString(stats.getRespawnTimer().getRemainingTime())),
                             new FormatArg("%cooldown%", Integer.toString(stats.getRespawnTimer().getCooldown())));
             }
@@ -227,25 +228,27 @@ public class LivingPetsListener implements Listener {
 
             if (stats.getRespawnTimer().isRunning()) {
                 e.setCancelled(true);
+                Debugger.send("§cSpawn of §6" + pet.getId() + "§c cancelled: respawn timer is running (§6" + stats.getRespawnTimer().getRemainingTime() + "s§c left).");
                 PetDespawnEvent petDespawnEvent = new PetDespawnEvent(pet, PetDespawnReason.RESPAWN_TIMER);
                 Utils.callEvent(petDespawnEvent);
 
                 Player p = Bukkit.getPlayer(pet.getOwner());
 
                 if (p != null)
-                    Language.RESPAWN_TIMER_RUNNING.sendMessageFormated(p,
+                    Language.RESPAWN_TIMER_RUNNING.sendMessageFormatted(p,
                         new FormatArg("%timeLeft%", Integer.toString(stats.getRespawnTimer().getRemainingTime())),
                         new FormatArg("%cooldown%", Integer.toString(stats.getRespawnTimer().getCooldown())));
             }
             else if (stats.getRevokeTimer().isRunning()) {
                 e.setCancelled(true);
+                Debugger.send("§cSpawn of §6" + pet.getId() + "§c cancelled: revoke timer is running (§6" + stats.getRevokeTimer().getRemainingTime() + "s§c left).");
                 PetDespawnEvent petDespawnEvent = new PetDespawnEvent(pet, PetDespawnReason.REVOKE_TIMER);
                 Utils.callEvent(petDespawnEvent);
 
                 Player p = Bukkit.getPlayer(pet.getOwner());
 
                 if (p != null)
-                    Language.REVOKE_TIMER_RUNNING.sendMessageFormated(p,
+                    Language.REVOKE_TIMER_RUNNING.sendMessageFormatted(p,
                         new FormatArg("%timeLeft%", Integer.toString(stats.getRevokeTimer().getRemainingTime())),
                         new FormatArg("%cooldown%", Integer.toString(stats.getRevokeTimer().getCooldown())));
             }

@@ -14,7 +14,7 @@ public class DismountPetFlag extends AbstractFlag implements StoppableFlag {
 
     public static String NAME = "mcpets-dismount";
 
-    public DismountPetFlag(MCPets instance) {
+    public DismountPetFlag(final MCPets instance) {
         super(NAME, false, instance);
     }
 
@@ -26,34 +26,35 @@ public class DismountPetFlag extends AbstractFlag implements StoppableFlag {
     @Override
     public void launch() {
         if (getFlag() == null) {
-            MCPets.getLog().warning(MCPets.getLogName() + "Flag " + getFlagName() + " couldn't not be launched as it's null. Please contact Nocsy.");
+            MCPets.getLog().warning("Flag " + getFlagName() + " couldn't not be launched as it's null. Please contact Nocsy.");
             return;
         }
         else {
-            MCPets.getLog().info(MCPets.getLogName() + "Starting flag " + getFlagName() + ".");
+            MCPets.getLog().info("Starting flag " + getFlagName() + ".");
         }
 
         task = Bukkit.getServer().getScheduler().scheduleSyncRepeatingTask(getMCPetsInstance(), () -> {
             if (MCPets.getMythicMobs() == null)
                 return;
 
-            for (UUID owner : Pet.getActivePets().keySet()) {
-                Pet pet = Pet.getActivePets().get(owner);
+            for (final UUID owner : Pet.getActivePets().keySet()) {
+                for (final Pet pet : Pet.getActivePetsForOwner(owner)) {
 
-                if (!pet.isMountable())
-                    continue;
-
-                Player p = Bukkit.getPlayer(owner);
-
-                if (p != null) {
-                    if (!pet.hasMount(p))
+                    if (!pet.isMountable())
                         continue;
 
-                    boolean hasToBeEjected = testState(p.getLocation());
+                    final Player p = Bukkit.getPlayer(owner);
 
-                    if (hasToBeEjected) {
-                        pet.dismount(p);
-                        Language.NOT_MOUNTABLE_HERE.sendMessage(p);
+                    if (p != null) {
+                        if (!pet.hasMount(p))
+                            continue;
+
+                        final boolean hasToBeEjected = testState(p.getLocation());
+
+                        if (hasToBeEjected) {
+                            pet.dismount(p);
+                            Language.NOT_MOUNTABLE_HERE.sendMessage(p);
+                        }
                     }
                 }
             }

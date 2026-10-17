@@ -1,22 +1,27 @@
 package fr.nocsy.mcpets.data;
 
-import fr.nocsy.mcpets.data.config.GlobalConfig;
+import java.util.*;
+
 import lombok.Getter;
 import lombok.Setter;
-import org.bukkit.Bukkit;
+
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.*;
+import fr.nocsy.mcpets.utils.Utils;
+import fr.nocsy.mcpets.utils.PDCTag;
+import fr.nocsy.mcpets.utils.MenuPaginationHelper;
+import fr.nocsy.mcpets.data.inventories.PetInventoryHolder;
+import fr.nocsy.mcpets.utils.MenuPaginationHelper.PaginationConfig;
 
 public class Category {
 
     @Getter
-    private static ArrayList<Category> categories = new ArrayList<>();
+    private static List<Category> categories = new ArrayList<>();
     @Getter
-    private static HashMap<UUID, Category> categoryView = new HashMap<>();
+    private static Map<UUID, Category> categoryView = new HashMap<>();
 
     @Getter
     private final String id;
@@ -32,7 +37,7 @@ public class Category {
     @Getter
     private ItemStack icon;
     @Getter
-    private ArrayList<Pet> pets;
+    private List<Pet> pets;
 
     @Getter
     private int maxPages;
@@ -45,131 +50,82 @@ public class Category {
     @Setter
     private List<String> excludedCategoriesId;
 
-    public Category(String id) {
+    @Getter
+    @Setter
+    private CategoryType categoryType;
+
+    public Category(final String id) {
         this.id = id;
         this.icon = null;
         this.pets = new ArrayList<>();
         this.displayName = "Unknown";
         this.iconName = "Unknown";
+        this.categoryType = CategoryType.DEFAULT;
     }
 
-    public boolean openInventory(Player p, int page) {
-        if (page >= maxPages || page < 0)
-            return false;
+    public boolean openInventory(final Player p, final int page) {
+        if (page >= maxPages || page < 0) return false;
 
         p.closeInventory();
 
-        int invSize = GlobalConfig.getInstance().getAdaptiveInventory();
-        // If we're using the adaptive inventory, we need to calculate the size of the inventory
-        if (invSize <= 0) {
-            invSize = pets.size() - page * 53 + 1; //Adding 1 for the page manager
+        final List<Pet> playerPets = new ArrayList<>();
+        for (Pet pet : pets) {
+            if (!pet.has(p)) continue;
+            playerPets.add(pet);
         }
-        invSize = Math.min(54, invSize);
-        while(invSize <= 0 || invSize%9 != 0) {
-            invSize++;
+        
+        if (playerPets.isEmpty() && page > 0) return false;
+        
+        PaginationConfig config = MenuPaginationHelper.calculatePagination(page, playerPets.size());
+
+        final List<Pet> petsForPage = new ArrayList<>();
+        for (int i = config.startIndex(); i < config.startIndex() + config.itemsToShow() && i < playerPets.size(); i++) {
+            petsForPage.add(playerPets.get(i));
         }
+        
+        final Inventory inventory = new PetInventoryHolder(config.invSize(), displayName, PetInventoryHolder.Type.CATEGORY_MENU).getInventory();
 
-        ArrayList<Pet> showedPets = new ArrayList<>();
-        for (int i = page*(invSize-1); i < pets.size(); i++) {
-            if (showedPets.size() >= invSize-1)
-                break;
-            Pet pet = pets.get(i);
-            if (pet.has(p))
-                showedPets.add(pet);
-        }
-
-        if (showedPets.isEmpty() && page > 0)
-            return false;
-
-        // Adaptive inventory setting
-        if (GlobalConfig.getInstance().getAdaptiveInventory() <= 0) {
-            invSize = showedPets.size();
-            if (maxPages > 1)
-                invSize++;
-            while(invSize <= 0 || invSize % 9 != 0)
-                invSize++;
+        if (config.needsPreviousButton()) {
+            inventory.setItem(0, Items.previousPage(this, page));
         }
 
-        Inventory inventory = Bukkit.createInventory(null,  invSize, displayName);
-
-        if (maxPages > 1)
-            inventory.setItem(invSize-1, Items.page(this, page));
-        for (int i = 0; i < showedPets.size(); i++) {
-            Pet pet = showedPets.get(i);
-            inventory.setItem(i,  pet.buildItem(pet.getIcon(), true, null, null, null, null, 0, null));
+        if (config.needsNextButton()) {
+            inventory.setItem(config.invSize() - 1, Items.nextPage(this, page));
         }
+
+        int slot = config.startSlot();
+        for (Pet pet : petsForPage) {
+            inventory.setItem(slot++, pet.buildItem(pet.getIcon(), true));
+        }
+
         p.openInventory(inventory);
         Category.registerPlayerView(p, this);
         return true;
     }
 
-    public void addPet(Pet pet) {
-        if (!pets.contains(pet))
-            pets.add(pet);
+    public void addPet(final Pet pet) {
+        if (!pets.contains(pet)) pets.add(pet);
     }
 
     public void countMaxPages() {
-        this.maxPages = 1;
-        int count = pets.size();
-        int invSize = GlobalConfig.getInstance().getAdaptiveInventory();
-        if (invSize > 0) {
-            while (invSize <= 0 || invSize % 9 != 0)
-                invSize++;
-            invSize--;
-        }
-        else {
-            invSize = 53;
-        }
-        while (count > 0) {
-            if (count%invSize == 0)
-                maxPages++;
-            count--;
-        }
+        maxPages = MenuPaginationHelper.calculateMaxPages(pets.size());
     }
 
-    public void setIcon(ItemStack it) {
+    public void setIcon(final ItemStack it) {
         icon = it;
         setupData();
     }
 
 
     private void setupData() {
-        ItemMeta meta = icon.getItemMeta();
-        meta.setItemName("MCPetsCategory;" + this.getId());
-        meta.setDisplayName(iconName);
+        final ItemMeta meta = icon.getItemMeta();
+        PDCTag.set(meta, "MCPetsCategory;" + this.getId());
+        meta.displayName(Utils.toComponent(iconName));
 
         icon.setItemMeta(meta);
     }
 
-    /**
-     * Return the page associated to the said inventory
-     * -1 if no category is found
-     */
-    public int getCurrentPage(Inventory inventory) {
-        if (inventory == null)
-            return -1;
-
-        ItemStack pager = inventory.getItem(inventory.getSize()-1);
-        if (pager != null
-                && !pager.getType().isAir()
-                && pager.hasItemMeta()
-                && pager.getItemMeta().hasItemName())
-        {
-            String[] data = pager.getItemMeta().getItemName().split(";");
-            if (data.length != 3)
-                return -1;
-
-            String tag = data[0];
-            if (!tag.equalsIgnoreCase("MCPetsPage"))
-                return -1;
-
-            String page = data[2];
-            return Integer.parseInt(page);
-        }
-        return -1;
-    }
-
-    public static void add(Category category) {
+    public static void add(final Category category) {
         categories.add(category);
     }
 
@@ -177,59 +133,51 @@ public class Category {
      * Return the category associated to the said id
      * null if none is found
      */
-    public static Category getFromId(String categoryId) {
-        Optional<Category> optional = categories.stream().filter(cat -> cat.getId().equals(categoryId)).findFirst();
+    public static Category getFromId(final String categoryId) {
+        final Optional<Category> optional = categories.stream().filter(cat -> cat.getId().equals(categoryId)).findFirst();
         return optional.orElse(null);
+    }
+
+    /**
+     * Return categories filtered by type
+     * For PET type, also includes DEFAULT categories for backward compatibility
+     * @param type the category type to filter by
+     * @return list of categories matching the type
+     */
+    public static List<Category> getCategories(CategoryType type) {
+        List<Category> filtered = new ArrayList<>();
+        for (Category cat : categories) {
+            if (cat.getCategoryType() == type) {
+                filtered.add(cat);
+            }
+            // For PET filter, also include DEFAULT categories
+            else if (type == CategoryType.PET && cat.getCategoryType() == CategoryType.DEFAULT) {
+                filtered.add(cat);
+            }
+        }
+        return filtered;
     }
 
     /**
      * Dynamically register the category viewed by the player
      * Recall to unregister the view when the inventory closes
      */
-    public static void registerPlayerView(Player p, Category category) {
+    public static void registerPlayerView(final Player p, final Category category) {
         categoryView.put(p.getUniqueId(), category);
     }
 
     /**
      * Unregister a dynamically saved player view of a category
      */
-    public static void unregisterPlayerView(Player p) {
+    public static void unregisterPlayerView(final Player p) {
         categoryView.remove(p.getUniqueId());
     }
 
     /**
      * Get the category currently viewed by the given player if dynamically registered
      */
-    public static Category getCategoryView(Player p) {
+    public static Category getCategoryView(final Player p) {
         return categoryView.get(p.getUniqueId());
     }
 
-    /**
-     * Return the category associated to the said inventory
-     * null if none is found
-     */
-    public static Category getFromInventory(Inventory inventory) {
-        if (inventory == null)
-            return null;
-
-        ItemStack pager = inventory.getItem(inventory.getSize()-1);
-        if (pager != null
-                && !pager.getType().isAir()
-                && pager.hasItemMeta()
-                && pager.getItemMeta().hasItemName()) {
-            String[] data = pager.getItemMeta().getItemName().split(";");
-            if (data.length != 3)
-                return null;
-
-            String tag = data[0];
-            if (!tag.equalsIgnoreCase("MCPetsPage"))
-                return null;
-
-            String categoryId = data[1];
-            String page = data[2];
-
-            return getFromId(categoryId);
-        }
-        return null;
-    }
 }

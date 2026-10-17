@@ -12,7 +12,7 @@ import org.bukkit.entity.Player;
 public class ArgumentOpen extends AArgument {
 
     public ArgumentOpen(CommandSender sender, String[] args) {
-        super("open", new int[]{2}, sender, args);
+        super("open", new int[]{2}, sender, args, "/mcpets open <player>");
     }
 
     @Override
@@ -25,7 +25,7 @@ public class ArgumentOpen extends AArgument {
         String playerName = args[1];
         Player playerToOpen = Bukkit.getPlayer(playerName);
         if (playerToOpen == null) {
-            Language.PLAYER_NOT_CONNECTED.sendMessageFormated(sender, new FormatArg("%player%", playerName));
+            Language.PLAYER_NOT_CONNECTED.sendMessageFormatted(sender, new FormatArg("%player%", playerName));
             return;
         }
 

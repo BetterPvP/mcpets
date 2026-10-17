@@ -24,9 +24,15 @@ public class PlayerData {
     @Setter
     private ConcurrentHashMap<String, String> mapOfRegisteredPetStats = new ConcurrentHashMap<>();
 
+    @Getter
+    @Setter
+    private String lastActivePet;
+
     @Setter
     @Getter
     private UUID uuid;
+
+    private static final String ACTIVE_PET_SKIN_DELIMITER = ":";
 
     private PlayerData(UUID uuid) {
         this.uuid = uuid;
@@ -51,6 +57,7 @@ public class PlayerData {
                 PlayerDataNoDatabase pdn = PlayerDataNoDatabase.get(owner);
                 data.setMapOfRegisteredNames(pdn.mapOfRegisteredNames);
                 data.setMapOfRegisteredInventories(pdn.mapOfRegisteredInventories);
+                data.setLastActivePet(pdn.getLastActivePet());
                 registeredData.put(owner, data);
 
                 return data;
@@ -66,6 +73,28 @@ public class PlayerData {
         PlayerData data = new PlayerData();
         data.setUuid(owner);
         return data;
+    }
+
+    public static String encodeActivePet(String petId, String skinPathId) {
+        if (petId == null)
+            petId = "";
+        return (skinPathId == null || skinPathId.isEmpty())
+                ? petId
+                : petId + ACTIVE_PET_SKIN_DELIMITER + skinPathId;
+    }
+
+    public static String decodeActivePetId(String value) {
+        if (value == null)
+            return null;
+        int idx = value.indexOf(ACTIVE_PET_SKIN_DELIMITER);
+        return idx < 0 ? value : value.substring(0, idx);
+    }
+
+    public static String decodeActiveSkinId(String value) {
+        if (value == null)
+            return null;
+        int idx = value.indexOf(ACTIVE_PET_SKIN_DELIMITER);
+        return idx < 0 ? null : value.substring(idx + ACTIVE_PET_SKIN_DELIMITER.length());
     }
 
     public static void saveDB() {
@@ -89,10 +118,11 @@ public class PlayerData {
 
     public void save() {
         if (GlobalConfig.getInstance().isDatabaseSupport())
-            saveDB();
+            Databases.savePlayerData(uuid);
         else {
             PlayerDataNoDatabase pdn = PlayerDataNoDatabase.get(uuid);
             pdn.setMapOfRegisteredNames(mapOfRegisteredNames);
+            pdn.setLastActivePet(lastActivePet);
 
             mapOfRegisteredInventories.clear();
             HashMap<String, PetInventory> inventories = PetInventory.getPetInventories().get(this.getUuid());
@@ -114,6 +144,11 @@ public class PlayerData {
         else {
             PlayerDataNoDatabase.getCacheMap().values().forEach(PlayerDataNoDatabase::reload);
         }
+    }
+
+    public static void remove(UUID uuid) {
+        registeredData.remove(uuid);
+        PlayerDataNoDatabase.getCacheMap().remove(uuid);
     }
 
     public static void reloadAll(UUID uuid) {

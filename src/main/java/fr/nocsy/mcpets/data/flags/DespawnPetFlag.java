@@ -1,14 +1,15 @@
 package fr.nocsy.mcpets.data.flags;
 
-import fr.nocsy.mcpets.MCPets;
-import fr.nocsy.mcpets.data.Pet;
-import fr.nocsy.mcpets.data.PetDespawnReason;
-import fr.nocsy.mcpets.data.config.Language;
+import java.util.UUID;
+import java.util.ArrayList;
+
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
-import java.util.ConcurrentModificationException;
-import java.util.UUID;
+import fr.nocsy.mcpets.MCPets;
+import fr.nocsy.mcpets.data.Pet;
+import fr.nocsy.mcpets.data.config.Language;
+import fr.nocsy.mcpets.data.PetDespawnReason;
 
 public class DespawnPetFlag extends AbstractFlag implements StoppableFlag {
 
@@ -16,7 +17,7 @@ public class DespawnPetFlag extends AbstractFlag implements StoppableFlag {
 
     public static String NAME = "mcpets-despawn";
 
-    public DespawnPetFlag(MCPets instance) {
+    public DespawnPetFlag(final MCPets instance) {
         super(NAME, false, instance);
     }
 
@@ -28,33 +29,28 @@ public class DespawnPetFlag extends AbstractFlag implements StoppableFlag {
     @Override
     public void launch() {
         if (getFlag() == null) {
-            MCPets.getLog().warning(MCPets.getLogName() + "Flag " + getFlagName() + " couldn't not be launched as it's null. Please contact Nocsy.");
+            MCPets.getLog().warning("Flag " + getFlagName() + " couldn't not be launched as it's null. Please contact Nocsy.");
             return;
         }
-        else {
-            MCPets.getLog().info(MCPets.getLogName() + "Starting flag " + getFlagName() + ".");
-        }
+
+        MCPets.getLog().info("Starting flag " + getFlagName() + ".");
 
         task = Bukkit.getServer().getScheduler().scheduleSyncRepeatingTask(getMCPetsInstance(), () -> {
-            if (MCPets.getMythicMobs() == null)
-                return;
+            if (MCPets.getMythicMobs() == null) return;
 
-            try {
-                for (UUID owner : Pet.getActivePets().keySet()) {
-                    Pet pet = Pet.getActivePets().get(owner);
-                    Player p = Bukkit.getPlayer(owner);
+            Player pl;
+            for (UUID owner : new ArrayList<>(Pet.getActivePets().keySet())) {
+                pl = Bukkit.getPlayer(owner);
+                if (pl == null) continue;
 
-                    if (p != null) {
-                        boolean hasToBeRemoved = testState(p.getLocation());
+                if (!testState(pl.getLocation())) continue;
 
-                        if (hasToBeRemoved) {
-                            pet.despawn(PetDespawnReason.FLAG);
-                            Language.CANT_FOLLOW_HERE.sendMessage(p);
-                        }
-                    }
+                for (Pet pet : new ArrayList<>(Pet.getActivePetsForOwner(owner))) {
+                    pet.despawn(PetDespawnReason.TELEPORT);
                 }
+
+                Language.CANT_FOLLOW_HERE.sendMessage(pl);
             }
-            catch (ConcurrentModificationException ignored) {}
         }, 0L, 20L);
     }
 
@@ -62,4 +58,5 @@ public class DespawnPetFlag extends AbstractFlag implements StoppableFlag {
     public void stop() {
         Bukkit.getServer().getScheduler().cancelTask(task);
     }
+
 }
