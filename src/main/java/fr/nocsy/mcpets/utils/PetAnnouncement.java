@@ -1,10 +1,12 @@
 package fr.nocsy.mcpets.utils;
 
-import fr.nocsy.mcpets.data.config.GlobalConfig;
-import org.bukkit.ChatColor;
+import java.util.Arrays;
+import java.time.Duration;
+
 import org.bukkit.entity.Player;
 
-import java.util.Arrays;
+import net.kyori.adventure.title.Title;
+import net.kyori.adventure.text.Component;
 
 public enum PetAnnouncement {
 
@@ -14,34 +16,32 @@ public enum PetAnnouncement {
 
     private final String announcementType;
 
-    PetAnnouncement(String annoucementType) {
-        this.announcementType = annoucementType;
+    PetAnnouncement(String announcementType) {
+        this.announcementType = announcementType;
     }
 
     public void announce(Player p, String message) {
-        message = ChatColor.translateAlternateColorCodes('&', message);
-
         switch(announcementType) {
             case "title":
+                Title.Times times = Title.Times.times(Duration.ofMillis(500), Duration.ofMillis(2000), Duration.ofMillis(500));
                 String[] cut = message.split("\n");
                 if (cut.length == 2) {
-                    String title = cut[0];
-                    String subtitle = cut[1];
-                    p.sendTitle(title, subtitle, 10, 40, 10);
-                }
-                else {
-                    p.sendTitle(message, "", 10, 40, 10);
+                    Component title = Utils.toComponent(cut[0]);
+                    Component subtitle = Utils.toComponent(cut[1]);
+                    p.showTitle(Title.title(title, subtitle, times));
+                } else {
+                    p.showTitle(Title.title(Utils.toComponent(message), Component.empty(), times));
                 }
                 break;
 
             case "chat":
-                p.sendMessage(GlobalConfig.getInstance().getPrefix() + message);
+                p.sendMessage(Utils.toComponentWithPrefix(message));
                 break;
             case "actionbar":
-                Utils.sendActionBar(p, message);
+                p.sendActionBar(Utils.toComponent(message));
                 break;
             default:
-                p.sendMessage(GlobalConfig.getInstance().getPrefix() + message);
+                p.sendMessage(Utils.toComponentWithPrefix(message));
         }
     }
 
@@ -52,4 +52,5 @@ public enum PetAnnouncement {
     public static PetAnnouncement get(String name) {
         return Arrays.stream(PetAnnouncement.values()).filter(petAnnouncement -> petAnnouncement.name().equalsIgnoreCase(name)).findFirst().orElse(PetAnnouncement.CHAT);
     }
+
 }

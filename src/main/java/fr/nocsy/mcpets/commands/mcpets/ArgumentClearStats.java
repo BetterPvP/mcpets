@@ -14,7 +14,7 @@ import org.bukkit.command.CommandSender;
 public class ArgumentClearStats extends AArgument {
 
     public ArgumentClearStats(CommandSender sender, String[] args) {
-        super("clearStats", new int[]{3, 2}, sender, args);
+        super("clearStats", new int[]{3, 2}, sender, args, "/mcpets clearStats <player|petId> [petId]");
     }
 
     @Override
@@ -41,13 +41,13 @@ public class ArgumentClearStats extends AArgument {
                 Pet pet = Pet.getFromId(petId);
                 if (pet != null) {
                     PetStats.remove(petId);
-                    Language.STATS_CLEARED_FOR_PET.sendMessageFormated(sender, new FormatArg("%petId%", petId));
+                    Language.STATS_CLEARED_FOR_PET.sendMessageFormatted(sender, new FormatArg("%petId%", petId));
                     PlayerData.saveDB();
                     return;
                 }
 
                 // In that case it's not a pet clear so he probably failed to give a player name
-                sender.sendMessage(Language.PLAYER_OR_PET_DOESNT_EXIST.getMessage());
+                sender.sendMessage(Language.PLAYER_OR_PET_DOESNT_EXIST.getComponent());
             }
         }
         else if (args.length == 3) {
@@ -61,14 +61,14 @@ public class ArgumentClearStats extends AArgument {
                 if (player != null || !player.hasPlayedBefore()) {
                     PlayerData pd = PlayerData.get(player.getUniqueId()); // Start by loading the player data
                     PetStats.remove(petId, player.getUniqueId());
-                    Language.STATS_CLEARED_FOR_PET_FOR_PLAYER.sendMessageFormated(sender, new FormatArg("%petId%", petId),
+                    Language.STATS_CLEARED_FOR_PET_FOR_PLAYER.sendMessageFormatted(sender, new FormatArg("%petId%", petId),
                             new FormatArg("%player%", playerName));
                     pd.save();
                     return;
                 }
             }
 
-            sender.sendMessage(Language.PLAYER_OR_PET_DOESNT_EXIST.getMessage());
+            sender.sendMessage(Language.PLAYER_OR_PET_DOESNT_EXIST.getComponent());
         }
     }
 }

@@ -12,7 +12,7 @@ import org.bukkit.entity.Player;
 public class ArgumentCategory extends AArgument {
 
     public ArgumentCategory(CommandSender sender, String[] args) {
-        super("category", new int[]{3, 2}, sender, args);
+        super("category", new int[]{3, 2}, sender, args, "/mcpets category <categoryId> [player]");
     }
 
     @Override
@@ -45,7 +45,7 @@ public class ArgumentCategory extends AArgument {
             String playerName = args[2];
             Player player = Bukkit.getPlayer(playerName);
             if (player == null) {
-                Language.PLAYER_NOT_CONNECTED.sendMessageFormated(sender, new FormatArg("%player%", playerName));
+                Language.PLAYER_NOT_CONNECTED.sendMessageFormatted(sender, new FormatArg("%player%", playerName));
                 return;
             }
 

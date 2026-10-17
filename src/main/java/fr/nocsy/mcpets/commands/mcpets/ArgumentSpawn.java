@@ -12,7 +12,7 @@ import org.bukkit.entity.Player;
 public class ArgumentSpawn extends AArgument {
 
     public ArgumentSpawn(CommandSender sender, String[] args) {
-        super("spawn", new int[]{4, 5}, sender, args);
+        super("spawn", new int[]{4, 5}, sender, args, "/mcpets spawn <petId> <player> <checkPermission> [-s]");
     }
 
     @Override
@@ -29,7 +29,7 @@ public class ArgumentSpawn extends AArgument {
 
         Player target = Bukkit.getPlayer(playerName);
         if (target == null) {
-            Language.PLAYER_NOT_CONNECTED.sendMessageFormated(sender, new FormatArg("%player%", playerName));
+            Language.PLAYER_NOT_CONNECTED.sendMessageFormatted(sender, new FormatArg("%player%", playerName));
             return;
         }
 

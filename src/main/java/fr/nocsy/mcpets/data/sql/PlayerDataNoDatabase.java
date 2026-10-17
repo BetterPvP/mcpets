@@ -23,6 +23,9 @@ public class PlayerDataNoDatabase extends AbstractConfig {
     @Getter
     @Setter
     public ConcurrentHashMap<String, String> mapOfRegisteredInventories = new ConcurrentHashMap<>();
+    @Getter
+    @Setter
+    private String lastActivePet;
 
     private PlayerDataNoDatabase(UUID uuid) {
         this.uuid = uuid;
@@ -49,6 +52,8 @@ public class PlayerDataNoDatabase extends AbstractConfig {
             getConfig().set("Inventories", new ArrayList<String>());
         if (getConfig().get("PetStats") == null)
             getConfig().set("PetStats", new ArrayList<String>());
+        if (getConfig().get("LastActivePet") == null)
+            getConfig().set("LastActivePet", "");
 
         reload();
     }
@@ -89,6 +94,7 @@ public class PlayerDataNoDatabase extends AbstractConfig {
 
         getConfig().set("PetStats", serializedStatsMap);
 
+        getConfig().set("LastActivePet", lastActivePet);
         super.save();
     }
 
@@ -97,7 +103,7 @@ public class PlayerDataNoDatabase extends AbstractConfig {
         // Unserialize the pet stats first, coz it influences the inventories
         PetStats.remove(uuid);
         for (String seria : getConfig().getStringList("PetStats")) {
-            PetStats stats = PetStats.unzerialize(seria);
+            PetStats stats = PetStats.unserialize(seria);
             if (stats == null)
                 continue;
             stats.launchTimers();
@@ -124,5 +130,6 @@ public class PlayerDataNoDatabase extends AbstractConfig {
             mapOfRegisteredInventories.put(id, seriaInventory);
             PetInventory.unserialize(seria, uuid);
         }
+        lastActivePet = getConfig().getString("LastActivePet");
     }
 }

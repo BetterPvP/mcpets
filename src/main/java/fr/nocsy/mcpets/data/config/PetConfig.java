@@ -1,38 +1,44 @@
 package fr.nocsy.mcpets.data.config;
 
-import com.nexomc.nexo.api.NexoItems;
-import com.nexomc.nexo.items.ItemBuilder;
-import dev.lone.itemsadder.api.CustomStack;
-import fr.nocsy.mcpets.MCPets;
-import fr.nocsy.mcpets.PPermission;
-import fr.nocsy.mcpets.data.Items;
-import fr.nocsy.mcpets.data.Pet;
-import fr.nocsy.mcpets.data.PetSkin;
-import fr.nocsy.mcpets.data.livingpets.PetLevel;
-import fr.nocsy.mcpets.utils.PetAnnouncement;
+import java.util.*;
+import java.io.File;
+import javax.annotation.Nullable;
+
 import lombok.Getter;
+
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import javax.annotation.Nullable;
-import java.io.File;
-import java.util.*;
-import java.util.stream.Collectors;
+import net.kyori.adventure.text.Component;
+
+import dev.lone.itemsadder.api.CustomStack;
+
+import com.nexomc.nexo.api.NexoItems;
+import com.nexomc.nexo.items.ItemBuilder;
+
+import fr.nocsy.mcpets.MCPets;
+import fr.nocsy.mcpets.data.Pet;
+import fr.nocsy.mcpets.data.Items;
+import fr.nocsy.mcpets.PPermission;
+import fr.nocsy.mcpets.utils.Utils;
+import fr.nocsy.mcpets.data.PetSkin;
+import fr.nocsy.mcpets.utils.PDCTag;
+import fr.nocsy.mcpets.utils.debug.Debugger;
+import fr.nocsy.mcpets.utils.PetAnnouncement;
+import fr.nocsy.mcpets.data.livingpets.PetLevel;
 
 public class PetConfig extends AbstractConfig {
 
-    private static HashMap<String, PetConfig> petConfigMapping = new HashMap<>();
+    private static Map<String, PetConfig> petConfigMapping = new HashMap<>();
 
-    public static String getFilePath(String petId) {
-        PetConfig config = getConfig(petId);
-        if (config ==  null)
-            return null;
+    public static String getFilePath(final String petId) {
+        final PetConfig config = getConfig(petId);
+        if (config ==  null) return null;
         return getPath() + config.getFolderName() + "/" + config.getFileName();
     }
 
-    public static PetConfig getConfig(String petId) {
+    public static PetConfig getConfig(final String petId) {
         return petConfigMapping.get(petId);
     }
 
@@ -43,12 +49,12 @@ public class PetConfig extends AbstractConfig {
      * Base constructor of a pet configuration (one to one)
      * It will initialize the variables while loading the data
      */
-    public PetConfig(String folderName, String fileName) {
+    public PetConfig(final String folderName, final String fileName) {
         init(folderName, fileName);
         reload();
     }
 
-    public void init(String folderName, String fileName) {
+    public void init(final String folderName, final String fileName) {
         super.init(folderName, fileName);
 
         if (getConfig().get("Id") == null)
@@ -63,11 +69,10 @@ public class PetConfig extends AbstractConfig {
             getConfig().set("SpawnRange", 3);
         if (getConfig().get("ComingBackRange") == null)
             getConfig().set("ComingBackRange", 3);
-        if (getConfig().get("MythicMob") == null)
-            getConfig().set("MythicMob", "No MythicMob defined");
-        if (getConfig().get("MythicMob") == null)
-            getConfig().set("MythicMob", "No MythicMob defined");
-
+        reorderKeys("Id", "MythicMob", "Permission", "Distance", "SpawnRange", "ComingBackRange",
+                "Mountable", "MountType", "MountPermission", "DespawnOnDismount", "AutoRide",
+                "Invulnerable", "InventorySize", "UseDefaultMythicMobsName",
+                "DespawnSkill", "SpawnSkill", "Taming", "Icon", "Signals", "Levels");
         save();
     }
 
@@ -77,29 +82,30 @@ public class PetConfig extends AbstractConfig {
      * @param folderPath folder where to seek for the pets
      * @param clearPets whether the loaded pets should be cleared (only first call should do that)
      */
-    public static void loadPets(String folderPath, boolean clearPets) {
+    public static void loadPets(final String folderPath, final boolean clearPets) {
         if (clearPets) {
             Bukkit.getConsoleSender().sendMessage("§9Loading pets... ");
             Pet.getObjectPets().clear();
         }
 
-        File folder = new File(folderPath);
-        if (!folder.exists())
-            folder.mkdirs();
+        final File folder = new File(folderPath);
+        if (!folder.exists()) folder.mkdirs();
 
-        for (File file : folder.listFiles()) {
+        final File[] files = folder.listFiles();
+        if (files == null) return;
+        for (final File file : files) {
             if (file.isDirectory()) {
                 loadPets(file.getPath().replace("\\", "/"), false);
                 continue;
             }
 
-            PetConfig petConfig = new PetConfig(folder.getPath().replace("\\", "/").replace(AbstractConfig.getPath(), ""), file.getName());
+            final PetConfig petConfig = new PetConfig(folder.getPath().replace("\\", "/").replace(AbstractConfig.getPath(), ""), file.getName());
 
             if (petConfig.getPet() != null) {
                 if (Pet.getObjectPets().stream().anyMatch(pet -> pet.getId().equalsIgnoreCase(petConfig.getPet().getId())))
                     Bukkit.getConsoleSender().sendMessage("  §c* " + petConfig.getPet().getId() + " could not be loaded: another pet with the same ID already exists.");
                 else {
-                    Bukkit.getConsoleSender().sendMessage("  §7- " + petConfig.getPet().getId() + " loaded succesfully.");
+                    Debugger.send("  §7- " + petConfig.getPet().getId() + " loaded successfully.");
                     Pet.getObjectPets().add(petConfig.getPet());
                 }
             }
@@ -110,7 +116,7 @@ public class PetConfig extends AbstractConfig {
         Pet.getObjectPets().sort(Comparator.comparing(Pet::getId));
 
         if (clearPets)
-            MCPets.getLog().info(MCPets.getLogName() + Pet.getObjectPets().size() + " pets registered successfully !");
+            MCPets.getLog().info(Pet.getObjectPets().size() + " pets registered successfully !");
     }
 
     /**
@@ -130,33 +136,33 @@ public class PetConfig extends AbstractConfig {
         loadConfig();
 
         // Setting up the data
-        String id = getConfig().getString("Id");
-        String mobType = getConfig().getString("MythicMob");
-        String permission = getConfig().getString("Permission");
-        int distance = getConfig().getInt("Distance");
-        int spawnRange = getConfig().getInt("SpawnRange");
-        int comingbackRange = getConfig().getInt("ComingBackRange");
-        String despawnSkillName = getConfig().getString("DespawnSkill");
-        String tamingSkillName = getConfig().getString("Taming.TamingProgressSkill");
-        String tamingOverSkillName = getConfig().getString("Taming.TamingFinishedSkill");
+        final String id = getConfig().getString("Id");
+        final String mobType = getConfig().getString("MythicMob");
+        final String permission = getConfig().getString("Permission");
+        final int distance = getConfig().getInt("Distance");
+        final int spawnRange = getConfig().getInt("SpawnRange");
+        final int comingBackRange = getConfig().getInt("ComingBackRange");
+        final String despawnSkillName = getConfig().getString("DespawnSkill");
+        final String tamingSkillName = getConfig().getString("Taming.TamingProgressSkill");
+        final String tamingOverSkillName = getConfig().getString("Taming.TamingFinishedSkill");
 
-        boolean autoRide = getConfig().getBoolean("AutoRide");
+        final boolean autoRide = getConfig().getBoolean("AutoRide");
         String mountType = getConfig().getString("MountType");
-        String mountPermission = getConfig().getString("MountPermission");
-        boolean despawnOnDismount = getConfig().getBoolean("DespawnOnDismount");
+        final String mountPermission = getConfig().getString("MountPermission");
+        final boolean despawnOnDismount = getConfig().getBoolean("DespawnOnDismount");
         int inventorySize = Math.max(Math.min(getConfig().getInt("InventorySize"), 54), 0);
-        while(inventorySize < 54 && inventorySize % 9 != 0)
+        while (inventorySize < 54 && inventorySize % 9 != 0)
             inventorySize++;
 
-        List<String> signals = getConfig().getStringList("Signals.Values");
+        final List<String> signals = getConfig().getStringList("Signals.Values");
         boolean enableSignalStickFromMenu = true;
         if (getConfig().get("Signals.Item.GetFromMenu") != null)
             enableSignalStickFromMenu = getConfig().getBoolean("Signals.Item.GetFromMenu");
 
         if (id == null) {
             // Warning case on which something essential would be missing
-            MCPets.getLog().warning(MCPets.getLogName() + "This pet could not be registered. Please check the configuration file to make sure you didn't miss anything.");
-            MCPets.getLog().warning(MCPets.getLogName() + "Information about the registered pet : ");
+            MCPets.getLog().warning("This pet could not be registered. Please check the configuration file to make sure you didn't miss anything.");
+            MCPets.getLog().warning("Information about the registered pet : ");
             MCPets.getLog().warning("id : " + id);
             MCPets.getLog().warning("mobType : " + mobType);
             MCPets.getLog().warning("permission : " + permission);
@@ -171,17 +177,18 @@ public class PetConfig extends AbstractConfig {
         pet.setMountPermission(mountPermission);
         if (getConfig().get("Mountable") == null) {
             pet.setMountable(GlobalConfig.getInstance().isMountable());
-        }
-        else {
+        } else {
             pet.setMountable(getConfig().getBoolean("Mountable"));
         }
-        if (mountType == null)
-            mountType = "walking";
+        if (mountType == null) mountType = "walking";
         pet.setDespawnOnDismount(despawnOnDismount);
         pet.setAutoRide(autoRide);
+        if (getConfig().get("UseDefaultMythicMobsName") != null) {
+            pet.setUseDefaultMythicMobNames(getConfig().getBoolean("UseDefaultMythicMobsName"));
+        }
         pet.setDistance(distance);
         pet.setSpawnRange(spawnRange);
-        pet.setComingBackRange(comingbackRange);
+        pet.setComingBackRange(comingBackRange);
         pet.setMountType(mountType);
         pet.setDefaultInventorySize(inventorySize);
         pet.setSignals(signals);
@@ -191,28 +198,26 @@ public class PetConfig extends AbstractConfig {
         pet.setTamingProgressSkill(tamingSkillName);
         pet.setTamingOverSkill(tamingOverSkillName);
 
-        ItemStack icon = legacyItemRead(pet.getIcon(), true, pet.toString(), "§cIcon (not set)", "Icon");
+        final ItemStack icon = legacyItemRead(pet.getIcon(), true, pet.toString(), "§cIcon (not set)", "Icon");
         pet.setIcon(icon);
 
-        ItemStack signalStickItem = legacyItemRead(pet.getSignalStick(), false, Items.buildSignalStickTag(pet), "§cSignal stick (not set)", "Signals.Item");
+        final ItemStack signalStickItem = legacyItemRead(pet.getSignalStick(), false, Items.buildSignalStickTag(pet), "§cSignal stick (not set)", "Signals.Item");
         pet.setSignalStick(signalStickItem);
 
         reloadSkins();
         reloadLevels();
     }
 
-    private ItemStack legacyItemRead(ItemStack item, boolean showStats, String localName, String defaultName, String path) {
+    private ItemStack legacyItemRead(final ItemStack item, final boolean showStats, final String localName, final String defaultName, final String path) {
         ItemStack itemStack = null;
         try {
             itemStack = getConfig().getItemStack(path + ".Raw");
-            ItemMeta meta = itemStack.getItemMeta();
-            meta.setItemName(localName);
+            final ItemMeta meta = itemStack.getItemMeta();
+            PDCTag.set(meta, localName);
             itemStack.setItemMeta(meta);
-            if (showStats)
-                itemStack = pet.applyStats(itemStack);
+            if (showStats) itemStack = pet.applyStats(itemStack);
             return itemStack;
-        }
-        catch (Exception ignored) {}
+        } catch (final Exception ignored) {}
 
         if (itemStack == null) {
             String name = getConfig().getString(path + ".Name");
@@ -222,20 +227,22 @@ public class PetConfig extends AbstractConfig {
             if (name == null) {
                 name = defaultName;
             }
-            String mat = getConfig().getString(path + ".Material");
-            String itemsAdder = getConfig().getString(path + ".ItemsAdder", "");
-            int data = getConfig().getInt(path + ".CustomModelData");
-            String textureBase = getConfig().getString(path + ".TextureBase64");
-            List<String> description = getConfig().getStringList(path + ".Description");
+            final String mat = getConfig().getString(path + ".Material");
+            final String itemsAdder = getConfig().getString(path + ".ItemsAdder", "");
+            final int data = getConfig().getInt(path + ".CustomModelData");
+            final String textureBase = getConfig().getString(path + ".TextureBase64");
+            final String itemModel = getConfig().getString(path + ".ItemModel");
+            final String tooltipStyle = getConfig().getString(path + ".TooltipStyle");
+            final List<String> description = getConfig().getStringList(path + ".Description");
             itemStack = pet.buildItem(
                     item, showStats, localName,
-                    name, description, mat, data, textureBase
+                    name, description, mat, data, textureBase, itemModel, tooltipStyle
             );
             // ItemsAdder compat
             if (MCPets.isItemsAdderLoaded() && !itemsAdder.isEmpty()) {
-                CustomStack customStack = CustomStack.getInstance(itemsAdder);
+                final CustomStack customStack = CustomStack.getInstance(itemsAdder);
                 if (customStack != null) {
-                    ItemStack iaItem = customStack.getItemStack();
+                    final ItemStack iaItem = customStack.getItemStack();
                     itemStack = pet.buildItem(
                             iaItem,
                             showStats,
@@ -244,34 +251,40 @@ public class PetConfig extends AbstractConfig {
                             description,
                             iaItem.getType().toString(),
                             iaItem.getItemMeta().getCustomModelData(),
-                            textureBase
+                            textureBase,
+                            null, null
                     );
                 }
             }
 
-            // Nexo integration
+            // Nexo integration — keep the original Nexo ItemStack to preserve item_model and all components
             if (MCPets.checkNexo()) {
-                String itemId = getConfig().getString(path + ".NexoId");
+                final String itemId = getConfig().getString(path + ".NexoId");
                 if (itemId != null && !itemId.isEmpty()) {
-                    ItemBuilder builder = NexoItems.itemFromId(itemId);
+                    final ItemBuilder builder = NexoItems.itemFromId(itemId);
                     if (builder != null) {
-                        ItemStack nexoItem = builder.build();
-                        Material nexoMat = nexoItem.getType();
-                        ItemMeta nexoMeta = nexoItem.getItemMeta();
-                        int nexoModelData = (nexoMeta != null && nexoMeta.hasCustomModelData())
-                                ? nexoMeta.getCustomModelData()
-                                : 0;
+                        itemStack = builder.build();
+                        final ItemMeta meta = itemStack.getItemMeta();
+                        PDCTag.set(meta, localName);
 
-                        itemStack = pet.buildItem(
-                                nexoItem,
-                                showStats,
-                                localName,
-                                name,
-                                description,
-                                nexoMat != null ? nexoMat.toString() : null,
-                                nexoModelData,
-                                textureBase
-                        );
+                        if (name != null) {
+                            String iconName = Utils.applyPlaceholders(pet.getOwner(), name);
+                            meta.displayName(Utils.toComponent(iconName));
+                        }
+
+                        if (description != null) {
+                            List<Component> desc = new ArrayList<>();
+
+                            for (String s : description) {
+                                desc.add(Utils.toComponent(Utils.applyPlaceholders(pet.getOwner(), s)));
+                            }
+
+                            meta.lore(desc);
+                        }
+
+                        itemStack.setItemMeta(meta);
+                        if (showStats) itemStack = pet.applyStats(itemStack);
+
                         return itemStack;
                     }
                 }
@@ -281,35 +294,36 @@ public class PetConfig extends AbstractConfig {
     }
 
     private void reloadLevels() {
-        ArrayList<PetLevel> levels = new ArrayList<>();
+        final List<PetLevel> levels = new ArrayList<>();
 
-        List<String> keys = getConfig().getKeys(true).stream()
-                .filter(key ->  key.contains("Levels") &&
+        final List<String> keys = getConfig().getKeys(true).stream()
+                .filter(key ->
+                        key.contains("Levels") &&
                         key.replace(".", ";").split(";").length == 2)
-                .collect(Collectors.toList());
-        for (String key : keys) {
-            String levelId = key.replace(".", ";").split(";")[1];
+                .toList();
+        for (final String key : keys) {
+            final String levelId = key.replace(".", ";").split(";")[1];
 
             String evolutionId = null;
             int delayBeforeEvolution = 0;
             boolean removePrevious = true;
-            double maxHealth = Optional.of(getConfig().getDouble(key + ".MaxHealth")).orElse(10D);
-            double regeneration = Optional.of(getConfig().getDouble(key + ".Regeneration")).orElse(0.1);
-            double resistanceModifier = Optional.of(getConfig().getDouble(key + ".ResistanceModifier")).orElse(1D);
-            double damageModifier = Optional.of(getConfig().getDouble(key + ".DamageModifier")).orElse(1D);
-            double power = Optional.of(getConfig().getDouble(key + ".Power")).orElse(1D);
-            int respawnCooldown = Optional.of(getConfig().getInt(key + ".Cooldowns.Respawn")).orElse(GlobalConfig.getInstance().getDefaultRespawnCooldown());
-            int revokeCooldown = Optional.of(getConfig().getInt(key + ".Cooldowns.Revoke")).orElse(0);
-            int inventoryExtension = Optional.of(getConfig().getInt(key + ".InventoryExtension")).orElse(0);
-            String levelName = getConfig().getString(key + ".Name");
-            double expThreshold = getConfig().getDouble(key + ".ExperienceThreshold");
+            final double maxHealth = getConfig().getDouble(key + ".MaxHealth", 10D);
+            final double regeneration = getConfig().getDouble(key + ".Regeneration", 0.1);
+            final double resistanceModifier = getConfig().getDouble(key + ".ResistanceModifier", 1D);
+            final double damageModifier = getConfig().getDouble(key + ".DamageModifier", 1D);
+            final double power = getConfig().getDouble(key + ".Power", 1D);
+            final int respawnCooldown = getConfig().getInt(key + ".Cooldowns.Respawn", GlobalConfig.getInstance().getDefaultRespawnCooldown());
+            final int revokeCooldown = getConfig().getInt(key + ".Cooldowns.Revoke", 0);
+            final int inventoryExtension = getConfig().getInt(key + ".InventoryExtension", 0);
+            final String levelName = getConfig().getString(key + ".Name");
+            final double expThreshold = getConfig().getDouble(key + ".ExperienceThreshold");
             String announcement = null;
             PetAnnouncement announcementType = null;
-            String mythicSkill = Optional.ofNullable(getConfig().getString(key + ".Announcement.Skill")).orElse(null);
+            final String mythicSkill = getConfig().getString(key + ".Announcement.Skill");
 
             if (getConfig().get(key + ".Evolution.PetId") != null) {
                 evolutionId = getConfig().getString(key + ".Evolution.PetId");
-                delayBeforeEvolution = Optional.of(getConfig().getInt(key + ".Evolution.DelayBeforeEvolution")).orElse(0);
+                delayBeforeEvolution = getConfig().getInt(key + ".Evolution.DelayBeforeEvolution", 0);
                 removePrevious = getConfig().get(key + ".Evolution.RemoveAccess") == null ||
                         getConfig().getBoolean(key + ".Evolution.RemoveAccess");
             }
@@ -320,7 +334,7 @@ public class PetConfig extends AbstractConfig {
                         .findFirst().orElse(PetAnnouncement.CHAT);
             }
 
-            PetLevel petLevel = new PetLevel(pet,
+            final PetLevel petLevel = new PetLevel(pet,
                     levelId,
                     evolutionId,
                     delayBeforeEvolution,
@@ -350,12 +364,13 @@ public class PetConfig extends AbstractConfig {
      * Method used only for the editor to register a clean level to the pet
      */
     public void registerCleanPetLevel(@Nullable String levelId) {
-        if (levelId == null)
-            levelId = UUID.randomUUID().toString();
+        if (levelId == null) levelId = UUID.randomUUID().toString();
 
         double defaultExp = 0.0;
-        if (!pet.getPetLevels().isEmpty())
-            defaultExp = pet.getPetLevels().get(pet.getPetLevels().size()-1).getExpThreshold() + 100;
+        if (!pet.getPetLevels().isEmpty()) {
+            defaultExp = pet.getPetLevels().get(pet.getPetLevels().size() - 1).getExpThreshold() + 100;
+        }
+
         getConfig().set("Levels." + levelId + ".Name", levelId);
         getConfig().set("Levels." + levelId + ".ExperienceThreshold", defaultExp);
         save();
@@ -364,11 +379,10 @@ public class PetConfig extends AbstractConfig {
         reloadLevels();
     }
 
-    public void deletePetLevel(String levelId) {
+    public void deletePetLevel(final String levelId) {
 
-        PetLevel petLevel = pet.getPetLevels().stream().filter(level -> level.getLevelId().equals(levelId)).findFirst().orElse(null);
-        if (petLevel == null)
-            return;
+        final PetLevel petLevel = pet.getPetLevels().stream().filter(level -> level.getLevelId().equals(levelId)).findFirst().orElse(null);
+        if (petLevel == null) return;
 
         getConfig().set("Levels." + levelId, null);
         save();
@@ -380,24 +394,24 @@ public class PetConfig extends AbstractConfig {
     private void reloadSkins() {
         PetSkin.clearList(pet);
 
-        List<String> keys = getConfig().getKeys(true).stream()
+        final List<String> keys = getConfig().getKeys(true).stream()
                 .filter(key ->
                         key.contains("Skins") &&
                                 key.replace(".", ";").split(";").length == 2)
-                .collect(Collectors.toList());
+                .toList();
 
-        for(String key : keys) {
-            String mythicMobId = getConfig().getString(key + ".MythicMob");
-            String skinPerm = getConfig().getString(key + ".Permission");
+        for (final String key : keys) {
+            final String mythicMobId = getConfig().getString(key + ".MythicMob");
+            final String skinPerm = getConfig().getString(key + ".Permission");
 
-            ItemStack skinIcon = legacyItemRead(null, false, "", "§cSkin icon (not set)", key + ".Icon");
+            final ItemStack skinIcon = legacyItemRead(null, false, "", "§cSkin icon (not set)", key + ".Icon");
 
             PetSkin.load(key, pet, mythicMobId, skinPerm, skinIcon);
         }
     }
 
     public void registerCleanPetSkin() {
-        String id = UUID.randomUUID().toString();
+        final String id = UUID.randomUUID().toString();
         getConfig().set("Skins." + id + ".MythicMob", pet.getMythicMobName());
         getConfig().set("Skins." + id + ".Permission", pet.getPermission());
         save();
@@ -406,7 +420,7 @@ public class PetConfig extends AbstractConfig {
         reloadSkins();
     }
 
-    public void deletePetSkin(String skinPath) {
+    public void deletePetSkin(final String skinPath) {
         getConfig().set(skinPath, null);
         save();
 
@@ -417,9 +431,10 @@ public class PetConfig extends AbstractConfig {
     /**
      * Load a fresh Pet Object instance with latest config info (for editor)
      */
-    public static Pet loadConfigPet(String petId) {
-        PetConfig oldConfig = PetConfig.getConfig(petId);
-        PetConfig refreshedConfig = new PetConfig(oldConfig.getFolderName(), oldConfig.getFileName());
+    public static Pet loadConfigPet(final String petId) {
+        final PetConfig oldConfig = PetConfig.getConfig(petId);
+        final PetConfig refreshedConfig = new PetConfig(oldConfig.getFolderName(), oldConfig.getFileName());
         return refreshedConfig.getPet();
     }
+
 }
